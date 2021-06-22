@@ -16,13 +16,9 @@ class ConsultationsService {
     }
 
     async create({ user_id, doctor_id, consultation_date }: IConsultationCreate) {
-        const consultationExists = this.consultationsRepository.findOne({
+        const consultation = this.consultationsRepository.create({
             user_id, doctor_id, consultation_date
         });
-
-        if (consultationExists) return consultationExists;
-
-        const consultation = this.consultationsRepository.create();
         await this.consultationsRepository.save(consultation);
         return consultation;
     }

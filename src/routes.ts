@@ -1,39 +1,35 @@
 import { Router, Request, Response } from "express";
+import { ibm_credentials } from './ibm_credentials';
+
 import { UsersController } from "./controllers/UsersController";
 import { MessagesController } from "./controllers/MessagesController"
 import { DoctorsController } from './controllers/DoctorsController';
+
 import { UsersService } from "./services/UsersService";
 import { ConnectionsService } from "./services/ConnectionsService";
 import { DoctorsService } from "./services/DoctorsService";
 import { MessagesService } from "./services/MessagesService";
 import { ConsultationsService } from "./services/ConsultationsService";
+import { ConsultationsController } from "./controllers/ConsultationsController";
 
 const routes = Router();
 const usersController = new UsersController();
 const messagesController = new MessagesController();
 const doctorsController = new DoctorsController();
-
-// IBM Watson credentials
-const credentials = {
-    version: '{version}',
-    apikey: '{api_key}',
-    serviceUrl: '{serviceUrl}',
-    assistantId: '{assistantId}'
-};
+const consultationsController = new ConsultationsController();
 
 const AssistantV2 = require('ibm-watson/assistant/v2');
 const { IamAuthenticator } = require('ibm-watson/auth');
 const assistant = new AssistantV2({
-    version: credentials.version,
+    version: ibm_credentials.version,
     authenticator: new IamAuthenticator({
-        apikey: credentials.apikey,
+        apikey: ibm_credentials.apikey,
     }),
-    serviceUrl: credentials.serviceUrl,
+    serviceUrl: ibm_credentials.serviceUrl,
     disableSslVerification: true
 });
-routes.post('/messages', async (request: Request, response: Response) => {
 
-    // messagesController.create
+routes.post('/messages', async (request: Request, response: Response) => {
     const { text, email } = request.body;
     if (text.length < 2) {
         response.json({
@@ -71,7 +67,7 @@ routes.post('/messages', async (request: Request, response: Response) => {
 
         const sendMessage = () => {
             assistant.message({
-                assistantId: credentials.assistantId,
+                assistantId: ibm_credentials.assistantId,
                 sessionId: connection.session_id,
                 input: {
                     'message_type': 'text',
@@ -91,6 +87,7 @@ routes.post('/messages', async (request: Request, response: Response) => {
 
                     adminResponse = adminResponse.substr(0, 46) + date.toLocaleDateString() +
                         adminResponse.substr(56);
+
                     const doctors = await doctorsService.findBySpecialty(
                         doctorSpecialty);
 
@@ -101,7 +98,7 @@ routes.post('/messages', async (request: Request, response: Response) => {
                     });
 
                     assistant.deleteSession({
-                        assistantId: credentials.assistantId,
+                        assistantId: ibm_credentials.assistantId,
                         sessionId: connection.session_id,
                     }).then(res => {
 
@@ -112,7 +109,7 @@ routes.post('/messages', async (request: Request, response: Response) => {
                 const adminMessage = await messagesService.create({
                     text: adminResponse,
                     user_id,
-                    admin_id: credentials.assistantId
+                    admin_id: ibm_credentials.assistantId
                 });
 
                 response.json({
@@ -126,7 +123,7 @@ routes.post('/messages', async (request: Request, response: Response) => {
         if (connection) {
             // Testa a sessão com o Watson
             assistant.message({
-                assistantId: credentials.assistantId,
+                assistantId: ibm_credentials.assistantId,
                 sessionId: connection.session_id,
                 input: {
                     'message_type': 'text',
@@ -136,7 +133,7 @@ routes.post('/messages', async (request: Request, response: Response) => {
                 sendMessage();
             }).catch(err => {
                 assistant.createSession({
-                    assistantId: credentials.assistantId
+                    assistantId: ibm_credentials.assistantId
                 }).then(async res => {
                     connection.session_id = res.result.session_id;
                     await connectionsService.updateSessionId(user_id,
@@ -147,13 +144,12 @@ routes.post('/messages', async (request: Request, response: Response) => {
                 });
             });
         } else {
-            // await
             assistant.createSession({
-                assistantId: credentials.assistantId
+                assistantId: ibm_credentials.assistantId
             }).then(async res => {
                 connection = await connectionsService.create({
                     user_id,
-                    admin_id: credentials.assistantId,
+                    admin_id: ibm_credentials.assistantId,
                     session_id: res.result.session_id
                 });
                 sendMessage();
@@ -166,6 +162,8 @@ routes.post('/messages', async (request: Request, response: Response) => {
 
 routes.post('/doctors', doctorsController.create);
 routes.get('/doctors/:specialty', doctorsController.findBySpecialty);
+
+routes.post('/consultations', consultationsController.create)
 
 routes.post("/users", usersController.create);
 routes.put('/users')
